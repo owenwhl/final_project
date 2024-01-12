@@ -3,12 +3,9 @@ import time
 import math
 import random
 
-def restart_game():
-    monster_group.empty()
-    coin_group.empty()
-    asteroid_group.empty()
-    projectile_group.empty()
-    damage_group.empty()
+def restart_game(sprite_groups):
+    for group in sprite_groups:
+        group.empty()
     player_level.xp_cap = 100
     ship.reset()
     upgrades.reset()
@@ -201,15 +198,12 @@ class CameraGroup(pygame.sprite.Group):
                 sprite.image, sprite.rect.topleft = blit_rotate_center(screen, player.image, player.position, player.angle)
                 offset_pos = sprite.rect.topleft - self.offset
                 self.display_surface.blit(sprite.image,offset_pos)
-
-        # coins
-        for sprite in sorted(coin_group.sprites(),key = lambda sprite: sprite.rect.centery):
+    
+        # pickup group
+        for sprite in sorted(pickup_group.sprites(),key = lambda sprite: sprite.rect.centery):
             offset_pos = sprite.rect.topleft - self.offset
             self.display_surface.blit(sprite.image,offset_pos)
-            if sprite.rect.colliderect(ship.rect):
-                ship.coins += 1
-                sprite.kill()
-    
+
         # explosions
         for sprite in sorted(explosion_group.sprites(),key = lambda sprite: sprite.rect.centery):
             offset_pos = sprite.rect.topleft - self.offset
@@ -300,8 +294,6 @@ class Player(pygame.sprite.Sprite):
 
             self.position.x -= (self.horizontal * self.velocity) * self.speed
             self.position.y -= (self.vertical * self.velocity) * self.speed
-        else:
-            self.vertical -= 1
 
     def increase_speed(self):
         if self.active:
@@ -380,7 +372,8 @@ class Projectile(pygame.sprite.Sprite):
                     self.kill()
                     sprite.kill()
                     ship.xp += 50
-                    return coin_group.add(Coin(x_pos,y_pos))
+                    return pickup_group.add(PickUp(x_pos,y_pos))
+                    # return coin_group.add(Coin(x_pos,y_pos))
                 return damage_group.add(Damage(sprite.rect.centerx,sprite.rect.centery,sprite.armor))
 
 class Monster(pygame.sprite.Sprite):
@@ -428,13 +421,6 @@ class Monster(pygame.sprite.Sprite):
             self.image = self.frames[int(self.animation_index)]
         else:
             self.animation_timer -= 1
-
-class Coin(pygame.sprite.Sprite):
-    def __init__(self,x_pos,y_pos):
-        super().__init__()
-        self.image = pygame.image.load('graphics/coin.png').convert_alpha()
-        self.image = pygame.transform.scale_by(self.image, 0.15)
-        self.rect = self.image.get_rect(center= (x_pos,y_pos))
 
 class Explosion(pygame.sprite.Sprite):
     def __init__(self,x_pos,y_pos):
@@ -495,7 +481,7 @@ class Upgrades:
         self.speed_lvl = 0             # 5
         self.health_regen_lvl = 0      # 6
 
-        self.attribute_points = 0
+        self.attribute_points = 150
         
     def lvl_up(self,allow_upgrades):
         keys = pygame.key.get_pressed()
@@ -561,6 +547,25 @@ class Damage(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center = (x_pos,y_pos))
         self.timer = 0
 
+class PickUp(pygame.sprite.Sprite):
+    def __init__(self,x_pos,y_pos):
+        super().__init__()
+        item_pickup = random.randrange(1,10)
+        if item_pickup == 0:
+            pickup_list = ["freeze","heal","nuke"]
+        else:
+            pickup_list = ["xp"]
+        choose_pickup = random.choice(pickup_list)
+        if choose_pickup == "freeze":
+            self.image = pygame.image.load('graphics/.png').convert_alpha()
+        elif choose_pickup == "heal":
+            self.image = pygame.image.load('graphics/.png').convert_alpha()
+        elif choose_pickup == "nuke":
+            self.image = pygame.image.load('graphics/.png').convert_alpha()
+        elif choose_pickup == "xp":
+            self.image = pygame.image.load('graphics/xp.png').convert_alpha()
+        self.rect = self.image.get_rect(center = (x_pos,y_pos))
+
 pygame.init()
 clock = pygame.time.Clock()
 game_timer = pygame.time.Clock()
@@ -575,14 +580,16 @@ gui_font = pygame.font.Font('graphics/PixelType.ttf', 75)
 small_font = pygame.font.Font('graphics/PixelType.ttf', 40)
 
 camera_group = CameraGroup()
+sprite_groups = []
 projectile_group = pygame.sprite.Group()
 asteroid_group = pygame.sprite.Group()
 monster_group = pygame.sprite.Group()
-coin_group = pygame.sprite.Group()
 damage_group = pygame.sprite.Group()
 level_up_group = pygame.sprite.Group()
 ground_group = pygame.sprite.Group()
 explosion_group = pygame.sprite.Group()
+pickup_group = pygame.sprite.Group()
+sprite_groups = [projectile_group,asteroid_group,monster_group,damage_group,level_up_group,explosion_group,pickup_group]
 player_level = Level()
 
 ground5 = Ground(-850,-450)
@@ -607,9 +614,9 @@ fire_bullet = pygame.USEREVENT + 1
 pygame.time.set_timer(fire_bullet, ship.fire_rate)
 
 spawn_asteroid = pygame.USEREVENT + 2
-pygame.time.set_timer(spawn_asteroid, 3000000)
+pygame.time.set_timer(spawn_asteroid, 1000)
 
-monster_timer = 3000
+monster_timer = 500
 spawn_monster = pygame.USEREVENT + 3
 pygame.time.set_timer(spawn_monster, monster_timer)
 
@@ -651,7 +658,7 @@ while running:
                     ship.remaining_health -= temp
         
     if not game_active:
-        screen.blit(ground5.ground_surf,ground5.ground_rect)
+        screen.blit(ground.ground_surf,ground.ground_rect)
         
         ship.animate_ship(True)
         camera_group.custom_draw(ship,alive,game_active)
@@ -783,7 +790,7 @@ while running:
                 screen.blit(spacebar,spacebar_rect)
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_SPACE]:
-                    alive = restart_game()
+                    alive = restart_game(sprite_groups)
                     seconds = 0
                     minutes = 0
                     game_timer = pygame.time.Clock()
