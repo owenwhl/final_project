@@ -3,6 +3,24 @@ import time
 import math
 import random
 
+def print_time(seconds,minutes):
+    if minutes < 1:
+        if seconds // 1000 < 10:
+            game_time = f'00: 0{seconds // 1000}'
+        else:
+            game_time = f'00: {seconds // 1000}'
+    elif minutes >= 1 and minutes < 10:
+        if seconds // 1000 < 10:
+            game_time = f'0{minutes}: 0{seconds // 1000}'
+        else:
+            game_time = f'0{minutes}: {seconds // 1000}'
+    elif minutes >= 10:
+        if seconds // 1000 < 10:
+            game_time = f'{minutes}: 0{seconds // 1000}'
+        else:
+            game_time = f'{minutes}: {seconds // 1000}'
+    return game_time
+
 def restart_game(sprite_groups):
     for group in sprite_groups:
         group.empty()
@@ -266,11 +284,11 @@ class Player(pygame.sprite.Sprite):
         self.velocity = 0
         self.acceleration = 0.1
 
-        self.coins = 0
-
         self.active = False
         self.damage_cooldown = 0
         self.death_timer = 0
+
+        self.monster_count = 0
 
     def animate_ship(self,moved=False):
         if self.damage_cooldown == 0:
@@ -319,7 +337,6 @@ class Player(pygame.sprite.Sprite):
     def reset(self):
         self.xp = 0
         self.lvl = 0
-        self.coins = 0
         self.max_health = 100
         self.position.x = 0
         self.position.y = 0
@@ -372,6 +389,7 @@ class Projectile(pygame.sprite.Sprite):
                     self.kill()
                     sprite.kill()
                     ship.xp += 50
+                    ship.monster_count += 1
                     return pickup_group.add(PickUp(x_pos,y_pos))
                     # return coin_group.add(Coin(x_pos,y_pos))
                 return damage_group.add(Damage(sprite.rect.centerx,sprite.rect.centery,sprite.armor))
@@ -663,7 +681,7 @@ while running:
         ship.animate_ship(True)
         camera_group.custom_draw(ship,alive,game_active)
 
-        title = title_font.render('SPACE SHOOTER',False,'white')
+        title = title_font.render('SPACE ODYSSEY',False,'white')
         title_rect = title.get_rect(center = (850,250))
         screen.blit(title,title_rect)
 
@@ -702,10 +720,6 @@ while running:
             coordinates = gui_font.render(f'{math.floor(ship.position.x)} {math.floor(ship.position.y)}',False,'red')
             coordinates_rect = coordinates.get_rect(topleft= (10,10))
             screen.blit(coordinates,coordinates_rect)
-
-            coins = gui_font.render(f'coins: {ship.coins}',False,'white')
-            coins_rect = coins.get_rect(bottomright= (1700,830))
-            screen.blit(coins,coins_rect)
 
             lvl = gui_font.render(f'lvl {ship.lvl}',False,'white')
             lvl_rect = lvl.get_rect(midbottom = (575,875))
@@ -782,12 +796,27 @@ while running:
             if ship.death_timer != 1:
                 ship.death_timer -= 1
             if ship.death_timer == 1:
+
                 game_over = gui_font.render('Game over!',False,'white')
-                game_over_rect = game_over.get_rect(center = (850,400))
+                game_over_rect = game_over.get_rect(center = (850,350))
                 screen.blit(game_over,game_over_rect)
+
+                monsters_killed = gui_font.render(f'Monsters killed: {ship.monster_count}',False,'white')
+                monsters_killed_rect = monsters_killed.get_rect(center = (850,400))
+                screen.blit(monsters_killed,monsters_killed_rect)
+
+                time_elapsed = gui_font.render(f'Time elapsed: {print_time(seconds,minutes)}',False,'white')
+                time_elapsed_rect = time_elapsed.get_rect(center = (850,450))
+                screen.blit(time_elapsed,time_elapsed_rect)
+
+                ship_level = gui_font.render(f'Ship level reached: {ship.lvl}',False,'white')
+                ship_level_rect = ship_level.get_rect(center = (850,500))
+                screen.blit(ship_level,ship_level_rect)
+
                 spacebar = gui_font.render('Press space to restart',False,'white')
-                spacebar_rect = spacebar.get_rect(center = (850,450))
+                spacebar_rect = spacebar.get_rect(center = (850,550))
                 screen.blit(spacebar,spacebar_rect)
+
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_SPACE]:
                     alive = restart_game(sprite_groups)
