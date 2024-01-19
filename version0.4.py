@@ -219,8 +219,20 @@ class CameraGroup(pygame.sprite.Group):
     
         # pickup group
         for sprite in sorted(pickup_group.sprites(),key = lambda sprite: sprite.rect.centery):
+            sprite.pickup_timer -= 1
+            if sprite.pickup_timer < 100:
+                sprite.kill()
+            if sprite.pickup_timer < 500:
+                multiplier = (500 - sprite.pickup_timer) / 100
+                if sprite.animation_index < 2:
+                    sprite.animation_index += 0.1 * multiplier
+                if sprite.animation_index >= 2:
+                    sprite.animation_index = 0
+            sprite.image = sprite.frames[int(sprite.animation_index)]
             offset_pos = sprite.rect.topleft - self.offset
             self.display_surface.blit(sprite.image,offset_pos)
+            if pygame.Rect.colliderect(ship.rect,sprite.rect):
+                sprite.pickup()
 
         # explosions
         for sprite in sorted(explosion_group.sprites(),key = lambda sprite: sprite.rect.centery):
@@ -382,16 +394,12 @@ class Projectile(pygame.sprite.Sprite):
                 sprite.health -= (ship.damage / sprite.armor)
                 self.kill()
                 if sprite.health <= 0:
-                    damage_group.add(Damage(self.rect.centerx,self.rect.centery,sprite.armor))
-                    x_pos = sprite.rect.centerx
-                    y_pos = sprite.rect.centery
-                    explosion_group.add(Explosion(x_pos,y_pos)) 
                     self.kill()
                     sprite.kill()
-                    ship.xp += 50
+                    damage_group.add(Damage(self.rect.centerx,self.rect.centery,sprite.armor))
+                    explosion_group.add(Explosion(sprite.rect.centerx,sprite.rect.centery)) 
                     ship.monster_count += 1
-                    return pickup_group.add(PickUp(x_pos,y_pos))
-                    # return coin_group.add(Coin(x_pos,y_pos))
+                    return pickup_group.add(PickUp(sprite.rect.centerx,sprite.rect.centery))
                 return damage_group.add(Damage(sprite.rect.centerx,sprite.rect.centery,sprite.armor))
 
 class Monster(pygame.sprite.Sprite):
@@ -566,24 +574,47 @@ class Damage(pygame.sprite.Sprite):
         self.timer = 0
 
 class PickUp(pygame.sprite.Sprite):
-    def __init__(self,x_pos,y_pos):
+    def __init__(self,x_pos,y_pos,nuke=False):
         super().__init__()
-        item_pickup = random.randrange(1,10)
-        if item_pickup == 0:
-            pickup_list = ["freeze","heal","nuke"]
+        self.pickup_timer = 2000
+        item_pickup = random.randrange(1,11)
+        if item_pickup == 1:
+            pickup_list = ["nuke"]
         else:
             pickup_list = ["xp"]
-        choose_pickup = random.choice(pickup_list)
-        if choose_pickup == "freeze":
-            self.image = pygame.image.load('graphics/.png').convert_alpha()
-        elif choose_pickup == "heal":
-            self.image = pygame.image.load('graphics/.png').convert_alpha()
-        elif choose_pickup == "nuke":
-            self.image = pygame.image.load('graphics/.png').convert_alpha()
-        elif choose_pickup == "xp":
-            self.image = pygame.image.load('graphics/xp.png').convert_alpha()
-        self.rect = self.image.get_rect(center = (x_pos,y_pos))
 
+        self.pickup_type = random.choice(pickup_list)
+        if nuke:
+            self.pickup_type == "xp"
+        
+        if self.pickup_type == "freeze":
+            frame1 = pygame.image.load('graphics/.png').convert_alpha()
+        elif self.pickup_type == "heal":
+            frame1 = pygame.image.load('graphics/.png').convert_alpha()
+        elif self.pickup_type == "nuke":
+            frame1 = pygame.image.load('graphics/nuke.png').convert_alpha()
+            frame1 = pygame.transform.scale_by(frame1, 0.01)
+        elif self.pickup_type == "xp":
+            frame1 = pygame.image.load('graphics/xp_orb.png').convert_alpha()
+            frame1 = pygame.transform.scale_by(frame1, 2)
+
+        frame2 = pygame.image.load('graphics/None.png').convert_alpha()
+        self.frames = [frame1,frame2]
+
+        self.animation_index = 0
+        self.image = self.frames[self.animation_index]
+        self.rect = self.image.get_rect(center = (x_pos,y_pos))
+    
+    def pickup(self):
+        if self.pickup_type == "nuke":
+            for sprite in sorted(monster_group.sprites(),key = lambda sprite: sprite.rect.centery):
+                pickup_group.add(PickUp(sprite.rect.centerx,sprite.rect.centery,True))
+            monster_group.empty()
+            self.kill()
+        if self.pickup_type == "xp":
+            ship.xp += 50
+            self.kill()
+                
 pygame.init()
 clock = pygame.time.Clock()
 game_timer = pygame.time.Clock()
