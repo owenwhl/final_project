@@ -216,10 +216,14 @@ class CameraGroup(pygame.sprite.Group):
                 sprite.image, sprite.rect.topleft = blit_rotate_center(screen, player.image, player.position, player.angle)
                 offset_pos = sprite.rect.topleft - self.offset
                 self.display_surface.blit(sprite.image,offset_pos)
-    
+
         # pickup group
         for sprite in sorted(pickup_group.sprites(),key = lambda sprite: sprite.rect.centery):
             sprite.pickup_timer -= 1
+            if ship.magnet_timer > 0 and sprite.pickup_type == 'xp':
+                dx, dy = sprite.move(sprite.rect.centerx,sprite.rect.centery)
+                sprite.rect.centerx += dx * 10
+                sprite.rect.centery += dy * 10
             if sprite.pickup_timer < 100:
                 sprite.kill()
             if sprite.pickup_timer < 500:
@@ -301,6 +305,7 @@ class Player(pygame.sprite.Sprite):
         self.death_timer = 0
 
         self.monster_count = 0
+        self.magnet_timer = 0
 
     def animate_ship(self,moved=False):
         if self.damage_cooldown == 0:
@@ -577,9 +582,10 @@ class PickUp(pygame.sprite.Sprite):
     def __init__(self,x_pos,y_pos,nuke=False):
         super().__init__()
         self.pickup_timer = 2000
+
         item_pickup = random.randrange(1,11)
         if item_pickup == 1:
-            pickup_list = ["nuke"]
+            pickup_list = ["magnet"]
         else:
             pickup_list = ["xp"]
 
@@ -589,6 +595,9 @@ class PickUp(pygame.sprite.Sprite):
         
         if self.pickup_type == "freeze":
             frame1 = pygame.image.load('graphics/.png').convert_alpha()
+        elif self.pickup_type == "magnet":
+            frame1 = pygame.image.load('graphics/magnet.png').convert_alpha()
+            frame1 = pygame.transform.scale_by(frame1, 0.025)
         elif self.pickup_type == "heal":
             frame1 = pygame.image.load('graphics/.png').convert_alpha()
         elif self.pickup_type == "nuke":
@@ -614,6 +623,17 @@ class PickUp(pygame.sprite.Sprite):
         if self.pickup_type == "xp":
             ship.xp += 50
             self.kill()
+        if self.pickup_type == "magnet":
+            ship.magnet_timer = 250
+            self.kill()
+
+    def move(self,x_pos,y_pos):
+        dx = ship.rect.centerx - x_pos
+        dy = ship.rect.centery - y_pos
+        distance = math.hypot(dx, dy)
+        dx, dy = dx / distance, dy / distance
+        return dx, dy
+                
                 
 pygame.init()
 clock = pygame.time.Clock()
@@ -730,6 +750,10 @@ while running:
     else:
         if alive:
             screen.fill('white')
+
+            if ship.magnet_timer > 0:
+                print(ship.magnet_timer)
+                ship.magnet_timer -= 1
 
             keys = pygame.key.get_pressed()
             moved = False
