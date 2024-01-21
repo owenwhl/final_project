@@ -220,7 +220,7 @@ class CameraGroup(pygame.sprite.Group):
         # pickup group
         for sprite in sorted(pickup_group.sprites(),key = lambda sprite: sprite.rect.centery):
             sprite.pickup_timer -= 1
-            if ship.magnet_timer > 0 and sprite.pickup_type == 'xp':
+            if ship.magnet_timer > 0:
                 dx, dy = sprite.move(sprite.rect.centerx,sprite.rect.centery)
                 sprite.rect.centerx += dx * 10
                 sprite.rect.centery += dy * 10
@@ -306,6 +306,10 @@ class Player(pygame.sprite.Sprite):
 
         self.monster_count = 0
         self.magnet_timer = 0
+
+        self.nuke_timer = 0
+
+        self.death_sound = pygame.mixer.Sound('audio/player_death.wav')
 
     def animate_ship(self,moved=False):
         if self.damage_cooldown == 0:
@@ -399,6 +403,7 @@ class Projectile(pygame.sprite.Sprite):
                 sprite.health -= (ship.damage / sprite.armor)
                 self.kill()
                 if sprite.health <= 0:
+                    sprite.death_sound.play()
                     self.kill()
                     sprite.kill()
                     damage_group.add(Damage(self.rect.centerx,self.rect.centery,sprite.armor))
@@ -430,6 +435,7 @@ class Monster(pygame.sprite.Sprite):
         self.scale = scale
 
         self.animation_timer = 0
+        self.death_sound = pygame.mixer.Sound('audio/explosion.wav')
 
     def move(self):
         dx = ship.rect.centerx - self.rect.centerx
@@ -476,11 +482,13 @@ class Level:
         self.image.fill("light blue") 
         self.rect = self.image.get_rect(midbottom = (650,870))
         self.xp_cap = 100
+        self.level_up_sound = pygame.mixer.Sound('audio/level_up.wav')
 
     def xp_bar_blit(self,xp,level):
         pixel_multiplier = self.xp_cap / 400
         self.image = pygame.Surface((ship.xp / pixel_multiplier,50))
         if ship.xp >= self.xp_cap:
+            self.level_up_sound.play()
             ship.lvl += 1
             ship.xp -= self.xp_cap
             self.xp_cap *= 1.15
@@ -583,9 +591,9 @@ class PickUp(pygame.sprite.Sprite):
         super().__init__()
         self.pickup_timer = 2000
 
-        item_pickup = random.randrange(1,11)
+        item_pickup = random.randrange(1,5)
         if item_pickup == 1:
-            pickup_list = ["magnet"]
+            pickup_list = ["nuke"]
         else:
             pickup_list = ["xp"]
 
@@ -598,34 +606,46 @@ class PickUp(pygame.sprite.Sprite):
         elif self.pickup_type == "magnet":
             frame1 = pygame.image.load('graphics/magnet.png').convert_alpha()
             frame1 = pygame.transform.scale_by(frame1, 0.025)
-        elif self.pickup_type == "heal":
-            frame1 = pygame.image.load('graphics/.png').convert_alpha()
+            sound = pygame.mixer.Sound('audio/magnet.wav')
+        elif self.pickup_type == "health":
+            frame1 = pygame.image.load('graphics/health.png').convert_alpha()
+            frame1 = pygame.transform.scale_by(frame1, 2)
+            sound = pygame.mixer.Sound('audio/health.wav')
+            sound.set_volume(0.5)
         elif self.pickup_type == "nuke":
             frame1 = pygame.image.load('graphics/nuke.png').convert_alpha()
             frame1 = pygame.transform.scale_by(frame1, 0.01)
+            sound = pygame.mixer.Sound('audio/nuke.wav')
         elif self.pickup_type == "xp":
             frame1 = pygame.image.load('graphics/xp_orb.png').convert_alpha()
             frame1 = pygame.transform.scale_by(frame1, 2)
+            sound = pygame.mixer.Sound('audio/collect.wav')
+            sound.set_volume(0.1)
 
         frame2 = pygame.image.load('graphics/None.png').convert_alpha()
         self.frames = [frame1,frame2]
-
+        self.sound = sound
         self.animation_index = 0
         self.image = self.frames[self.animation_index]
         self.rect = self.image.get_rect(center = (x_pos,y_pos))
     
     def pickup(self):
+        self.sound.play()
         if self.pickup_type == "nuke":
+            ship.nuke_timer = 300
             for sprite in sorted(monster_group.sprites(),key = lambda sprite: sprite.rect.centery):
                 pickup_group.add(PickUp(sprite.rect.centerx,sprite.rect.centery,True))
             monster_group.empty()
-            self.kill()
+            asteroid_group.empty()
         if self.pickup_type == "xp":
             ship.xp += 50
-            self.kill()
         if self.pickup_type == "magnet":
             ship.magnet_timer = 250
-            self.kill()
+        if self.pickup_type == "health":
+            ship.remaining_health += (ship.max_health / 4)
+            if ship.remaining_health > ship.max_health:
+                ship.remaining_health = ship.max_health
+        self.kill()
 
     def move(self,x_pos,y_pos):
         dx = ship.rect.centerx - x_pos
@@ -633,8 +653,7 @@ class PickUp(pygame.sprite.Sprite):
         distance = math.hypot(dx, dy)
         dx, dy = dx / distance, dy / distance
         return dx, dy
-                
-                
+           
 pygame.init()
 clock = pygame.time.Clock()
 game_timer = pygame.time.Clock()
@@ -643,6 +662,9 @@ running = True
 game_active = False
 alive = True
 dt = 0
+soundtrack = pygame.mixer.Sound('audio/soundtrack.wav')
+soundtrack.set_volume(0.1)
+soundtrack.play(loops = -1)
 
 title_font = pygame.font.Font('graphics/PixelType.ttf', 150)
 gui_font = pygame.font.Font('graphics/PixelType.ttf', 75)
@@ -749,10 +771,9 @@ while running:
 
     else:
         if alive:
-            screen.fill('white')
+            screen.fill('black')
 
             if ship.magnet_timer > 0:
-                print(ship.magnet_timer)
                 ship.magnet_timer -= 1
 
             keys = pygame.key.get_pressed()
@@ -841,12 +862,22 @@ while running:
             else:
                 player_explosion = Explosion(ship.position.x,ship.position.y)
                 explosion_group.add(player_explosion)
+                ship.death_sound.play()
                 ship.death_timer = 125
                 alive = False
-                
+
+            if ship.nuke_timer > 0:
+                nuke = pygame.Surface((1700,900))
+                nuke.fill('white')
+                nuke_rect = nuke.get_rect(center = (850,450))
+                nuke.set_alpha(ship.nuke_timer)
+                screen.blit(nuke,nuke_rect)
+                ship.nuke_timer -= 5
+
         else:
-            screen.fill('white')
+            screen.fill('black')
             camera_group.custom_draw(ship,alive,game_active)
+            soundtrack.stop()
 
             if ship.death_timer != 1:
                 ship.death_timer -= 1
@@ -874,6 +905,7 @@ while running:
 
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_SPACE]:
+                    soundtrack.play()
                     alive = restart_game(sprite_groups)
                     seconds = 0
                     minutes = 0
