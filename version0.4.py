@@ -3,6 +3,45 @@ import time
 import math
 import random
 
+def game_over(seconds,minutes):
+    gui = {}
+
+    game_over = gui_font.render('Game over!',False,'white')
+    game_over_rect = game_over.get_rect(center = (850,200))
+
+    monsters_killed = gui_font.render(f'Monsters killed: {ship.monster_count}',False,'white')
+    monsters_killed_rect = monsters_killed.get_rect(center = (850,300))
+
+    time_elapsed = gui_font.render(f'Time elapsed: {print_time(seconds,minutes)}',False,'white')
+    time_elapsed_rect = time_elapsed.get_rect(center = (850,350))
+
+    ship_level = gui_font.render(f'Ship level reached: {ship.lvl}',False,'white')
+    ship_level_rect = ship_level.get_rect(center = (850,400))
+
+    asteroids_destroyed = gui_font.render(f'Asteroids demolished: {ship.asteroid_count}',False,'white')
+    asteroids_destroyed_rect = asteroids_destroyed.get_rect(center = (850,450))
+
+    xp_orbs_collected = gui_font.render(f'Xp orbs collected: {ship.xp_count}',False,'white')
+    xp_orbs_collected_rect = xp_orbs_collected.get_rect(center = (850, 500))
+
+    powerups_collected = gui_font.render(f'Powerups collected: {ship.powerup_count}',False,'white')
+    powerups_collected_rect = powerups_collected.get_rect(center = (850,550))
+
+    spacebar = gui_font.render('Press space to restart',False,'white')
+    spacebar_rect = spacebar.get_rect(center = (850,700))
+    
+    gui[game_over] = game_over_rect
+    gui[monsters_killed] = monsters_killed_rect
+    gui[time_elapsed] = time_elapsed_rect
+    gui[ship_level] = ship_level_rect
+    gui[spacebar] = spacebar_rect
+    gui[asteroids_destroyed] = asteroids_destroyed_rect
+    gui[xp_orbs_collected] = xp_orbs_collected_rect
+    gui[powerups_collected] = powerups_collected_rect
+
+    for surf, rect in gui.items():
+        screen.blit(surf,rect)
+
 def print_time(seconds,minutes):
     if minutes < 1:
         if seconds // 1000 < 10:
@@ -137,11 +176,23 @@ class Asteroid(pygame.sprite.Sprite):
     def __init__(self,direction,x_pos,y_pos,rand_img,scale):
         super().__init__()
         # print(f"asteroid created with direction {direction} at {x_pos,y_pos}")
-        self.image = pygame.image.load(f'graphics/{rand_img}.png')
-        self.image = pygame.transform.scale_by(self.image, scale)
+        frame1 = pygame.image.load(f'graphics/{rand_img}.png')
+        frame1 = pygame.transform.scale_by(frame1, scale)
+        damage_frame = pygame.image.load(f'graphics/{rand_img}_damage.png')
+        damage_frame = pygame.transform.scale_by(damage_frame, scale)
+        frozen_frame = pygame.image.load(f'graphics/{rand_img}_frozen.png')
+        frozen_frame = pygame.transform.scale_by(frozen_frame, scale)
+
+        self.scale = 1 + (scale * 5)
+        self.frames = [frame1,damage_frame,frozen_frame]
+        self.image = frame1
         self.rect = self.image.get_rect(center = (x_pos,y_pos))
         self.direction = pygame.math.Vector2((0,0))
         self.direction += direction
+        self.health = 100
+
+        self.animation_timer = 0
+        self.death_sound = pygame.mixer.Sound('audio/asteroid_explosion.wav')
 
     def move(self):
         self.rect.center += self.direction
@@ -198,15 +249,26 @@ class CameraGroup(pygame.sprite.Group):
 
         # asteroids
         for sprite in sorted(asteroid_group.sprites(),key = lambda sprite: sprite.rect.centery):
-            sprite.move()
+            if sprite.animation_timer > 0:
+                sprite.animation_timer -= 1
+                sprite.image = sprite.frames[1]
+            else:
+                sprite.image = sprite.frames[0]
+            if ship.freeze_timer == 0:
+                sprite.move()
+            else:
+                sprite.image = sprite.frames[2]
             offset_pos = sprite.rect.topleft - self.offset
             sprite.check_collision()
             self.display_surface.blit(sprite.image,offset_pos)
 
         # monsters
         for sprite in sorted(monster_group.sprites(),key = lambda sprite: sprite.rect.center):
-            sprite.move()
             sprite.animate_sprite()
+            if ship.freeze_timer == 0:
+                sprite.move()
+            else:
+                sprite.image = sprite.frames[3]
             offset_pos = sprite.rect.topleft - self.offset
             self.display_surface.blit(sprite.image,offset_pos)
 
@@ -305,11 +367,16 @@ class Player(pygame.sprite.Sprite):
         self.death_timer = 0
 
         self.monster_count = 0
-        self.magnet_timer = 0
+        self.asteroid_count = 0
+        self.xp_count = 0
+        self.powerup_count = 0
 
+        self.magnet_timer = 0
         self.nuke_timer = 0
+        self.freeze_timer = 0
 
         self.death_sound = pygame.mixer.Sound('audio/player_death.wav')
+        self.death_sound.set_volume(0.25)
 
     def animate_ship(self,moved=False):
         if self.damage_cooldown == 0:
@@ -322,7 +389,6 @@ class Player(pygame.sprite.Sprite):
         else:
             self.image = self.ship_state[3]
             self.damage_cooldown -= 1
-
 
     def move_player(self):
         if self.active:
@@ -392,7 +458,7 @@ class Projectile(pygame.sprite.Sprite):
         self.rect.midtop += self.position
         x_diff = self.rect.x - ship.position.x
         y_diff = self.rect.y - ship.position.y
-        if abs(x_diff) > 1500 or abs(y_diff) > 1500:
+        if abs(x_diff) > 850 or abs(y_diff) > 450:
             self.kill()
 
     def check_collision(self):
@@ -407,10 +473,37 @@ class Projectile(pygame.sprite.Sprite):
                     self.kill()
                     sprite.kill()
                     damage_group.add(Damage(self.rect.centerx,self.rect.centery,sprite.armor))
-                    explosion_group.add(Explosion(sprite.rect.centerx,sprite.rect.centery)) 
+                    explosion_group.add(Explosion(sprite.rect.centerx,sprite.rect.centery,1)) 
                     ship.monster_count += 1
                     return pickup_group.add(PickUp(sprite.rect.centerx,sprite.rect.centery))
                 return damage_group.add(Damage(sprite.rect.centerx,sprite.rect.centery,sprite.armor))
+        for sprite in sorted(asteroid_group.sprites(),key = lambda sprite: sprite.rect.centery):
+            if pygame.Rect.colliderect(sprite.rect,self.rect):
+                sprite.animation_timer = 5
+                sprite.health -= ship.damage
+                self.kill()
+                if sprite.health <= 0:
+                    roll = [1,2,3,4,5,6]
+                    if upgrades.max_health_lvl >= 25:
+                        roll.remove(1)
+                    if upgrades.damage_lvl >= 25:
+                        roll.remove(2)
+                    if upgrades.proj_speed_lvl >= 25:
+                        roll.remove(3)
+                    if upgrades.fire_rate_lvl >= 25:
+                        roll.remove(4)
+                    if upgrades.speed_lvl >= 25:
+                        roll.remove(5)
+                    if upgrades.health_regen_lvl >= 25:
+                        roll.remove(6)
+                    if roll:
+                        pick = random.choice(roll)
+                        upgrades.lvl_up(True, pick)
+                        level_up_group.add(LevelUp(ship.position.x,ship.position.y,pick))
+                    sprite.kill()
+                    ship.asteroid_count += 1
+                    sprite.death_sound.play()
+                    explosion_group.add(Explosion(sprite.rect.centerx,sprite.rect.centery,sprite.scale))
 
 class Monster(pygame.sprite.Sprite):
     def __init__(self,monster_type,skin,scale,speed,health,armor,x_pos,y_pos):
@@ -421,7 +514,9 @@ class Monster(pygame.sprite.Sprite):
         frame2 = pygame.transform.scale_by(frame2, scale)
         damage_frame = pygame.image.load(f'graphics/{monster_type}_damage.png').convert_alpha()
         damage_frame = pygame.transform.scale_by(damage_frame, scale)
-        self.frames = [frame1,frame2,damage_frame]
+        frozen_frame = pygame.image.load(f'graphics/{monster_type}_frozen.png').convert_alpha()
+        frozen_frame = pygame.transform.scale_by(frozen_frame, scale)
+        self.frames = [frame1,frame2,damage_frame,frozen_frame]
         
         self.animation_index = 0
         self.image = self.frames[self.animation_index]
@@ -460,16 +555,16 @@ class Monster(pygame.sprite.Sprite):
             self.animation_timer -= 1
 
 class Explosion(pygame.sprite.Sprite):
-    def __init__(self,x_pos,y_pos):
+    def __init__(self,x_pos,y_pos,scale):
         super().__init__()
         frame1 = pygame.image.load('graphics/explosion_0.png').convert_alpha()
-        frame1 = pygame.transform.scale_by(frame1, 3)
+        frame1 = pygame.transform.scale_by(frame1, 2 + scale)
         frame2 = pygame.image.load('graphics/explosion_1.png').convert_alpha()
-        frame2 = pygame.transform.scale_by(frame2, 3)
+        frame2 = pygame.transform.scale_by(frame2, 2 + scale)
         frame3 = pygame.image.load('graphics/explosion_2.png').convert_alpha()
-        frame3 = pygame.transform.scale_by(frame3, 3)
+        frame3 = pygame.transform.scale_by(frame3, 2 + scale)
         frame4 = pygame.image.load('graphics/explosion_3.png').convert_alpha()
-        frame4 = pygame.transform.scale_by(frame4, 3)
+        frame4 = pygame.transform.scale_by(frame4, 2 + scale)
         self.frames = [frame1,frame2,frame3,frame4]
         self.animation_index = 0
         self.image = self.frames[self.animation_index]
@@ -493,14 +588,25 @@ class Level:
             ship.xp -= self.xp_cap
             self.xp_cap *= 1.15
             upgrades.attribute_points += 1
-            return level_up_group.add(LevelUp(ship.position.x,ship.position.y))
+            return level_up_group.add(LevelUp(ship.position.x,ship.position.y,0))
         self.image.fill("light blue")
         screen.blit(self.image,self.rect)
 
 class LevelUp(pygame.sprite.Sprite):
-    def __init__(self,ship_posx,ship_posy):
+    def __init__(self,ship_posx,ship_posy,attribute):
         super().__init__()
-        self.image = small_font.render('Level up!',False,'green')
+        self.attributes = {}
+        self.attributes[1] = '#FD7F84'
+        self.attributes[2] = '#FDDD7F'
+        self.attributes[3] = '#FDF97F'
+        self.attributes[4] = '#7FFD89'
+        self.attributes[5] = '#7F88FD'
+        self.attributes[6] = '#BE7FFD'
+
+        if not attribute:
+            self.image = small_font.render('Level up!',False,'green')
+        else:
+            self.image = small_font.render('+1',False,self.attributes[attribute])
         self.rect = self.image.get_rect(center = (ship_posx,ship_posy))
         self.timer = 0
 
@@ -522,45 +628,74 @@ class Upgrades:
 
         self.attribute_points = 150
         
-    def lvl_up(self,allow_upgrades):
+    def lvl_up(self,allow_upgrades,bypass):
         keys = pygame.key.get_pressed()
-        if self.attribute_points > 0:
-            if allow_upgrades:
-                if keys[pygame.K_1] and self.max_health_lvl <= 24: # health
+        if self.attribute_points > 0 or bypass:
+            if allow_upgrades or bypass:
+                if self.max_health_lvl <= 24 and (keys[pygame.K_1] or bypass == 1): # health
                     self.max_health_lvl += 1
                     self.attribute_points -= 1
                     ship.max_health += (upgrades.max_health_lvl * 10)
-                    return False
-                if keys[pygame.K_2] and self.damage_lvl <= 24: # damage
+                    level_up_group.add(LevelUp(ship.position.x,ship.position.y,1))
+
+                if self.damage_lvl <= 24 and (keys[pygame.K_2] or bypass == 2): # damage
                     self.damage_lvl += 1
                     self.attribute_points -= 1
                     ship.damage += 7.5
-                    # print(ship.damage)
-                    return False
-                if keys[pygame.K_3] and self.proj_speed_lvl <= 24: # proj speed
+                    level_up_group.add(LevelUp(ship.position.x,ship.position.y,2))
+
+                if self.proj_speed_lvl <= 24 and (keys[pygame.K_3] or bypass == 3): # proj speed
                     self.proj_speed_lvl += 1
                     self.attribute_points -= 1
                     ship.proj_speed += 1.75
-                    # print(ship.proj_speed)
-                    return False
-                if keys[pygame.K_4] and self.fire_rate_lvl <= 24: # fire rate
+                    level_up_group.add(LevelUp(ship.position.x,ship.position.y,3))
+
+                if self.fire_rate_lvl <= 24 and (keys[pygame.K_4] or bypass == 4): # fire rate
                     self.fire_rate_lvl += 1
                     self.attribute_points -= 1
                     ship.fire_rate -= 39
-                    # print(ship.fire_rate)
-                    return False
-                if keys[pygame.K_5] and self.speed_lvl <= 24: # speed
+                    level_up_group.add(LevelUp(ship.position.x,ship.position.y,4))
+
+                if self.speed_lvl <= 24 and (keys[pygame.K_5] or bypass == 5): # speed
                     self.speed_lvl += 1
                     self.attribute_points -= 1
                     ship.speed += 0.1
-                    # print(ship.speed)
-                    return False
-                if keys[pygame.K_6] and self.health_regen_lvl <= 24:
+                    level_up_group.add(LevelUp(ship.position.x,ship.position.y,5))
+
+                if self.health_regen_lvl <= 24 and (keys[pygame.K_6] or bypass == 6): # health regen
                     self.health_regen_lvl += 1
                     self.attribute_points -= 1
                     ship.health_regen -= 30
-                    # print(ship.health_regen)
-                    return False
+                    level_up_group.add(LevelUp(ship.position.x,ship.position.y,6))
+
+                return False
+
+    def print_gui(self):
+        attribute_gui = pygame.image.load('graphics/attribute_gui.png')
+        attribute_gui = pygame.transform.scale_by(attribute_gui, 3)
+        attribute_gui_rect = attribute_gui.get_rect(bottomleft = (10,875))
+        screen.blit(attribute_gui,attribute_gui_rect)
+        self.max_health_font = attribute_font.render(f"Max Health Lvl: {self.max_health_lvl}",False,"black")
+        self.max_health_font_rect = self.max_health_font.get_rect(midleft = (20, 680))
+        self.damage_font = attribute_font.render(f"Damage Lvl: {self.damage_lvl}",False,"black")
+        self.damage_font_rect = self.damage_font.get_rect(midleft = (20, 717))
+        self.proj_speed_font = attribute_font.render(f"Proj Speed Lvl: {self.proj_speed_lvl}",False,"black")
+        self.proj_speed_font_rect = self.proj_speed_font.get_rect(midleft = (20, 753))
+        self.fire_rate_font = attribute_font.render(f"Fire Rate Lvl: {self.fire_rate_lvl}",False,"black")
+        self.fire_rate_font_rect = self.fire_rate_font.get_rect(midleft = (20, 789))
+        self.speed_font = attribute_font.render(f"Speed Lvl: {self.speed_lvl}",False,"black")
+        self.speed_font_rect = self.speed_font.get_rect(midleft = (20, 825))
+        self.health_regen_font = attribute_font.render(f"Health Regen Lvl: {self.health_regen_lvl}",False,"black")
+        self.health_regen_font_rect = self.health_regen_font.get_rect(midleft = (20, 862))
+        self.attributes = {}
+        self.attributes[self.max_health_font] = self.max_health_font_rect
+        self.attributes[self.damage_font] = self.damage_font_rect
+        self.attributes[self.proj_speed_font] = self.proj_speed_font_rect
+        self.attributes[self.fire_rate_font] = self.fire_rate_font_rect
+        self.attributes[self.speed_font] = self.speed_font_rect
+        self.attributes[self.health_regen_font] = self.health_regen_font_rect
+        for attribute, rect in self.attributes.items():
+            screen.blit(attribute,rect)
 
     def reset(self):
         self.max_health_lvl = 0     
@@ -569,7 +704,7 @@ class Upgrades:
         self.proj_speed_lvl = 0      
         self.fire_rate_lvl = 0        
         self.speed_lvl = 0
-        self.attribute_points = 0
+        self.attribute_points = 0  
 
 class Damage(pygame.sprite.Sprite):
     def __init__(self,x_pos,y_pos,armor):
@@ -593,7 +728,7 @@ class PickUp(pygame.sprite.Sprite):
 
         item_pickup = random.randrange(1,5)
         if item_pickup == 1:
-            pickup_list = ["nuke"]
+            pickup_list = ["freeze","health","nuke","magnet"]
         else:
             pickup_list = ["xp"]
 
@@ -602,7 +737,9 @@ class PickUp(pygame.sprite.Sprite):
             self.pickup_type == "xp"
         
         if self.pickup_type == "freeze":
-            frame1 = pygame.image.load('graphics/.png').convert_alpha()
+            frame1 = pygame.image.load('graphics/freeze.png').convert_alpha()
+            frame1 = pygame.transform.scale_by(frame1, 0.05)
+            sound = pygame.mixer.Sound('audio/freeze.wav')
         elif self.pickup_type == "magnet":
             frame1 = pygame.image.load('graphics/magnet.png').convert_alpha()
             frame1 = pygame.transform.scale_by(frame1, 0.025)
@@ -632,19 +769,26 @@ class PickUp(pygame.sprite.Sprite):
     def pickup(self):
         self.sound.play()
         if self.pickup_type == "nuke":
+            ship.powerup_count += 1
             ship.nuke_timer = 300
             for sprite in sorted(monster_group.sprites(),key = lambda sprite: sprite.rect.centery):
                 pickup_group.add(PickUp(sprite.rect.centerx,sprite.rect.centery,True))
             monster_group.empty()
             asteroid_group.empty()
         if self.pickup_type == "xp":
+            ship.xp_count += 1
             ship.xp += 50
         if self.pickup_type == "magnet":
+            ship.powerup_count += 1
             ship.magnet_timer = 250
         if self.pickup_type == "health":
+            ship.powerup_count += 1
             ship.remaining_health += (ship.max_health / 4)
             if ship.remaining_health > ship.max_health:
                 ship.remaining_health = ship.max_health
+        if self.pickup_type == "freeze":
+            ship.powerup_count += 1
+            ship.freeze_timer = 250
         self.kill()
 
     def move(self,x_pos,y_pos):
@@ -669,6 +813,7 @@ soundtrack.play(loops = -1)
 title_font = pygame.font.Font('graphics/PixelType.ttf', 150)
 gui_font = pygame.font.Font('graphics/PixelType.ttf', 75)
 small_font = pygame.font.Font('graphics/PixelType.ttf', 40)
+attribute_font = pygame.font.Font('graphics/PixelType.ttf', 32)
 
 camera_group = CameraGroup()
 sprite_groups = []
@@ -775,6 +920,8 @@ while running:
 
             if ship.magnet_timer > 0:
                 ship.magnet_timer -= 1
+            if ship.freeze_timer > 0:
+                ship.freeze_timer -= 1
 
             keys = pygame.key.get_pressed()
             moved = False
@@ -831,17 +978,6 @@ while running:
             lvl_up_tokens_rect = lvl_up_tokens.get_rect(midleft= (10,450))
             screen.blit(lvl_up_tokens,lvl_up_tokens_rect)
 
-            allow_upgrades = upgrades.lvl_up(allow_upgrades)
-
-            attribute_list = [upgrades.max_health_lvl,upgrades.damage_lvl,upgrades.proj_speed_lvl,upgrades.fire_rate_lvl,upgrades.speed_lvl,upgrades.health_regen_lvl]
-            counter = 0
-
-            for attribute_lvl in attribute_list:
-                display_level = gui_font.render(f'{attribute_lvl}',False,'white')
-                display_level_rect = display_level.get_rect(bottomleft = (50 + counter,850))
-                screen.blit(display_level,display_level_rect)
-                counter += 75
-
             if ship.remaining_health == ship.max_health:
                 blit_health = False
             else:
@@ -860,11 +996,14 @@ while running:
                 screen.blit(remaining_health,remaining_health_rect)
 
             else:
-                player_explosion = Explosion(ship.position.x,ship.position.y)
+                player_explosion = Explosion(ship.position.x,ship.position.y,1)
                 explosion_group.add(player_explosion)
                 ship.death_sound.play()
                 ship.death_timer = 125
                 alive = False
+            
+            allow_upgrades = upgrades.lvl_up(allow_upgrades, 0)
+            upgrades.print_gui()
 
             if ship.nuke_timer > 0:
                 nuke = pygame.Surface((1700,900))
@@ -882,27 +1021,8 @@ while running:
             if ship.death_timer != 1:
                 ship.death_timer -= 1
             if ship.death_timer == 1:
-
-                game_over = gui_font.render('Game over!',False,'white')
-                game_over_rect = game_over.get_rect(center = (850,350))
-                screen.blit(game_over,game_over_rect)
-
-                monsters_killed = gui_font.render(f'Monsters killed: {ship.monster_count}',False,'white')
-                monsters_killed_rect = monsters_killed.get_rect(center = (850,400))
-                screen.blit(monsters_killed,monsters_killed_rect)
-
-                time_elapsed = gui_font.render(f'Time elapsed: {print_time(seconds,minutes)}',False,'white')
-                time_elapsed_rect = time_elapsed.get_rect(center = (850,450))
-                screen.blit(time_elapsed,time_elapsed_rect)
-
-                ship_level = gui_font.render(f'Ship level reached: {ship.lvl}',False,'white')
-                ship_level_rect = ship_level.get_rect(center = (850,500))
-                screen.blit(ship_level,ship_level_rect)
-
-                spacebar = gui_font.render('Press space to restart',False,'white')
-                spacebar_rect = spacebar.get_rect(center = (850,550))
-                screen.blit(spacebar,spacebar_rect)
-
+                game_over(seconds,minutes)
+            
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_SPACE]:
                     soundtrack.play()
