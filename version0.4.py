@@ -648,37 +648,43 @@ class Upgrades:
             if allow_upgrades or bypass:
                 if self.max_health_lvl <= 24 and (keys[pygame.K_1] or bypass == 1): # health
                     self.max_health_lvl += 1
-                    self.attribute_points -= 1
+                    if bypass != 1:
+                        self.attribute_points -= 1
                     ship.max_health += (upgrades.max_health_lvl * 10)
                     level_up_group.add(LevelUp(ship.position.x,ship.position.y,1))
 
                 if self.damage_lvl <= 24 and (keys[pygame.K_2] or bypass == 2): # damage
                     self.damage_lvl += 1
-                    self.attribute_points -= 1
+                    if bypass != 2:
+                        self.attribute_points -= 1
                     ship.damage += 7.5
                     level_up_group.add(LevelUp(ship.position.x,ship.position.y,2))
 
                 if self.proj_speed_lvl <= 24 and (keys[pygame.K_3] or bypass == 3): # proj speed
                     self.proj_speed_lvl += 1
-                    self.attribute_points -= 1
+                    if bypass != 3:
+                        self.attribute_points -= 1
                     ship.proj_speed += 1.75
                     level_up_group.add(LevelUp(ship.position.x,ship.position.y,3))
 
                 if self.fire_rate_lvl <= 24 and (keys[pygame.K_4] or bypass == 4): # fire rate
                     self.fire_rate_lvl += 1
-                    self.attribute_points -= 1
+                    if bypass != 4:
+                        self.attribute_points -= 1
                     ship.fire_rate -= 39
                     level_up_group.add(LevelUp(ship.position.x,ship.position.y,4))
 
                 if self.speed_lvl <= 24 and (keys[pygame.K_5] or bypass == 5): # speed
                     self.speed_lvl += 1
-                    self.attribute_points -= 1
+                    if bypass != 5:
+                        self.attribute_points -= 1
                     ship.speed += 0.1
                     level_up_group.add(LevelUp(ship.position.x,ship.position.y,5))
 
                 if self.health_regen_lvl <= 24 and (keys[pygame.K_6] or bypass == 6): # health regen
                     self.health_regen_lvl += 1
-                    self.attribute_points -= 1
+                    if bypass != 6:
+                        self.attribute_points -= 1
                     ship.health_regen -= 30
                     level_up_group.add(LevelUp(ship.position.x,ship.position.y,6))
 
@@ -821,7 +827,7 @@ game_active = False
 alive = True
 dt = 0
 soundtrack = pygame.mixer.Sound('audio/soundtrack.wav')
-soundtrack.set_volume(0.1)
+soundtrack.set_volume(0.01)
 soundtrack.play(loops = -1)
 
 title_font = pygame.font.Font('graphics/PixelType.ttf', 150)
@@ -867,9 +873,9 @@ fire_bullet = pygame.USEREVENT + 1
 pygame.time.set_timer(fire_bullet, ship.fire_rate)
 
 spawn_asteroid = pygame.USEREVENT + 2
-pygame.time.set_timer(spawn_asteroid, 1000)
+pygame.time.set_timer(spawn_asteroid, 3000)
 
-monster_timer = 500
+monster_timer = 2500
 spawn_monster = pygame.USEREVENT + 3
 pygame.time.set_timer(spawn_monster, monster_timer)
 
