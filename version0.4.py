@@ -325,6 +325,8 @@ class CameraGroup(pygame.sprite.Group):
             screen.blit(sprite.image,offset_pos)
             sprite.move()       
 
+        # mutations
+
 class Player(pygame.sprite.Sprite):
     def __init__(self,x,y,max_vel,rotation_vel):
         super().__init__()
@@ -375,6 +377,10 @@ class Player(pygame.sprite.Sprite):
         self.nuke_timer = 0
         self.freeze_timer = 0
 
+        # self.double_shot = False
+        # self.poison_shot = False
+        # self.flank_shot = False
+
         self.death_sound = pygame.mixer.Sound('audio/player_death.wav')
         self.death_sound.set_volume(0.25)
 
@@ -420,6 +426,14 @@ class Player(pygame.sprite.Sprite):
     def create_bullet(self):
         return Projectile(screen.get_width() / 2, screen.get_height() / 2,
         self.angle, self.position)
+
+    # def activate_mutation(self,mutation):
+    #     if mutation == 0:
+    #         self.double_shot = True
+    #     if mutation == 1:
+    #         self.poison_shot = True
+    #     if mutation == 2:
+    #         self.flank_shot = True
 
     def reset(self):
         self.xp = 0
@@ -626,7 +640,7 @@ class Upgrades:
         self.speed_lvl = 0             # 5
         self.health_regen_lvl = 0      # 6
 
-        self.attribute_points = 150
+        self.attribute_points = 0
         
     def lvl_up(self,allow_upgrades,bypass):
         keys = pygame.key.get_pressed()
@@ -726,7 +740,7 @@ class PickUp(pygame.sprite.Sprite):
         super().__init__()
         self.pickup_timer = 2000
 
-        item_pickup = random.randrange(1,5)
+        item_pickup = random.randrange(1,11)
         if item_pickup == 1:
             pickup_list = ["freeze","health","nuke","magnet"]
         else:
@@ -797,7 +811,7 @@ class PickUp(pygame.sprite.Sprite):
         distance = math.hypot(dx, dy)
         dx, dy = dx / distance, dy / distance
         return dx, dy
-           
+
 pygame.init()
 clock = pygame.time.Clock()
 game_timer = pygame.time.Clock()
@@ -814,6 +828,7 @@ title_font = pygame.font.Font('graphics/PixelType.ttf', 150)
 gui_font = pygame.font.Font('graphics/PixelType.ttf', 75)
 small_font = pygame.font.Font('graphics/PixelType.ttf', 40)
 attribute_font = pygame.font.Font('graphics/PixelType.ttf', 32)
+mutation_font = pygame.font.Font('graphics/PixelType.ttf',60)
 
 camera_group = CameraGroup()
 sprite_groups = []
@@ -825,6 +840,7 @@ level_up_group = pygame.sprite.Group()
 ground_group = pygame.sprite.Group()
 explosion_group = pygame.sprite.Group()
 pickup_group = pygame.sprite.Group()
+# mutation_group = pygame.sprite.Group()
 sprite_groups = [projectile_group,asteroid_group,monster_group,damage_group,level_up_group,explosion_group,pickup_group]
 player_level = Level()
 
@@ -845,6 +861,7 @@ ship = Player(0,0,1.5,4)
 camera_group.add(ship)
 
 upgrades = Upgrades()
+# mutations = Mutations()
 
 fire_bullet = pygame.USEREVENT + 1
 pygame.time.set_timer(fire_bullet, ship.fire_rate)
@@ -939,10 +956,10 @@ while running:
                 ship.animate_ship(moved)
 
             camera_group.custom_draw(ship,alive,game_active)
-
-            coordinates = gui_font.render(f'{math.floor(ship.position.x)} {math.floor(ship.position.y)}',False,'red')
-            coordinates_rect = coordinates.get_rect(topleft= (10,10))
-            screen.blit(coordinates,coordinates_rect)
+                
+            # coordinates = gui_font.render(f'{math.floor(ship.position.x)} {math.floor(ship.position.y)}',False,'red')
+            # coordinates_rect = coordinates.get_rect(topleft= (10,10))
+            # screen.blit(coordinates,coordinates_rect)
 
             lvl = gui_font.render(f'lvl {ship.lvl}',False,'white')
             lvl_rect = lvl.get_rect(midbottom = (575,875))
@@ -974,9 +991,9 @@ while running:
 
             player_level.xp_bar_blit(ship.xp,ship.lvl)
 
-            lvl_up_tokens = gui_font.render(f'tokens: {upgrades.attribute_points}',False,'white')
-            lvl_up_tokens_rect = lvl_up_tokens.get_rect(midleft= (10,450))
-            screen.blit(lvl_up_tokens,lvl_up_tokens_rect)
+            # lvl_up_tokens = gui_font.render(f'tokens: {upgrades.attribute_points}',False,'white')
+            # lvl_up_tokens_rect = lvl_up_tokens.get_rect(midleft= (10,450))
+            # screen.blit(lvl_up_tokens,lvl_up_tokens_rect)
 
             if ship.remaining_health == ship.max_health:
                 blit_health = False
@@ -1012,7 +1029,7 @@ while running:
                 nuke.set_alpha(ship.nuke_timer)
                 screen.blit(nuke,nuke_rect)
                 ship.nuke_timer -= 5
-
+            
         else:
             screen.fill('black')
             camera_group.custom_draw(ship,alive,game_active)
