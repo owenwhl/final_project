@@ -1072,4 +1072,4 @@ while running: # game loop
     pygame.display.update() # updates the display
     dt = clock.tick(60) / 1000 # stabilizes framerate
 
-pygame.quit() # application closes
+pygame.quit() # program closes
