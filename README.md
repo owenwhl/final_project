@@ -1,4 +1,4 @@
-# owenhl_final_project
+# Owen HL - ISC4U Culminating Project
 
 Space Odyssey: A top-down shooter set in space 
 
