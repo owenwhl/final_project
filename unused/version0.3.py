@@ -1,107 +1,111 @@
 import pygame
-import time
-import math
+import random
 
-def blit_rotate_center(surface, image, top_left, angle):
-    rotated_image = pygame.transform.rotate(image, angle)
-    new_rect = rotated_image.get_rect(center= image.get_rect(center= top_left).center)
-    surface.blit(rotated_image, new_rect.topleft)
-
-class Player(pygame.sprite.Sprite):
-    def __init__(self,x,y,max_vel,rotation_vel):
-        super().__init__()
-        ship_1 = pygame.image.load('graphics/ship_up1.png').convert_alpha()
-        ship_1 = pygame.transform.scale_by(ship_1, 5)
-        ship_2 = pygame.image.load('graphics/ship_up2.png').convert_alpha()
-        ship_2 = pygame.transform.scale_by(ship_2, 5)
-        ship_still = pygame.image.load('graphics/ship_up0.png').convert_alpha()
-        ship_still = pygame.transform.scale_by(ship_still, 5)
-        self.ship_state = [ship_1, ship_2, ship_still]
-        self.ship_index = 0
-
-        self.image = self.ship_state[self.ship_index]
-        self.rect = self.image.get_rect(midbottom = (0,0))
-
-        self.angle = 0
-        self.rotation_vel = rotation_vel
-        self.max_vel = max_vel
-
-        self.position = pygame.Vector2((x,y))
-        self.velocity = 0
-        # self.move_direction = pygame.Vector2()
-        self.acceleration = 0.1
-
-    def animate_ship(self,moved=False):
-        if moved:
-            self.ship_index += 0.1
-            if self.ship_index > 2: self.ship_index = 0
-            self.image = self.ship_state[int(self.ship_index)]
-        else:
-            self.image = self.ship_state[2]
-
-    def move_player(self):
-        radians = math.radians(self.angle)
-
-        vertical = math.cos(radians) * self.velocity
-        horizontal = math.sin(radians) * self.velocity
-
-        self.position.x -= horizontal
-        self.position.y -= vertical
-
-    def increase_speed(self):
-        self.velocity = min(self.velocity + self.acceleration, self.max_vel)
-        self.move_player()
-
-    def reduce_speed(self):
-        self.velocity = max(self.velocity - self.acceleration/2, 0)
-        self.move_player()
-
-    def rotate(self,left=False,right=False):
-        if left:
-            self.angle += self.rotation_vel
-        elif right:
-            self.angle -= self.rotation_vel
-
-    def update(self):
-        blit_rotate_center(screen, self.image, self.position, self.angle)
-
+# pygame setup
 pygame.init()
+width = 1650
+height = 800
+screen = pygame.display.set_mode((width, height))
 clock = pygame.time.Clock()
-screen = pygame.display.set_mode((1280,720))
 running = True
 dt = 0
-ground_surf = pygame.image.load("graphics/space.jpg").convert_alpha()
-ground_surf = pygame.transform.scale_by(ground_surf, 3)
-ground_rect = ground_surf.get_rect(center = (640,360))
-ship = Player(640,360,10,3)
 
+camera_group = pygame.sprite.Group()
+
+
+player = pygame.image.load("graphics/unused/ship_up0.png")
+
+enemy = pygame.image.load("graphics/unused/enemy.png")
+scale = (50,50)
+enemy = pygame.transform.scale(enemy, scale)
+
+class Player:
+    def __init__(self,x,y):
+        self.position = pygame.Vector2(x, y) # position is determined by a 2d vector
+        self.velocity = pygame.Vector2(0, 0) # velocity is a seperate vector starting at 0,0 
+        self.acceleration = 0.3 # larger number makes player faster
+        self.friction = 0.03 # larger number makes player slower (cannot be 1)
+
+    def move(self, direction): # move method takes an integer as input
+        self.velocity += direction * self.acceleration # calculates velocity by multiplying by acceleration
+        self.velocity.x *= 1 - self.friction           # and then divides (mutiply by decimal) by friction
+        self.velocity.y *= 1 - self.friction
+
+        self.position += self.velocity # velocity is then added to position
+
+class Enemy:
+    def __init__(self,x,y,health):
+        self.health = health
+        self.position = pygame.Vector2(x, y)
+
+    def move(self):
+        direction = ["up","down","left","right"] # list of four cardinal directions
+        if self.position.x <= 0: # removes direction if enemy is at the edge of the screen
+            direction.remove("left")
+        elif self.position.x >= screen.get_width() - 50:
+            direction.remove("right")
+        if self.position.y <= 0:
+            direction.remove("up")
+        elif self.position.y >= screen.get_height() - 50:
+            direction.remove("down")
+
+        choice = random.choice(direction) # chooses a random direction from the list
+
+        if choice == "left": # moves enemy
+            self.position.x -= 50
+        elif choice == "right":
+            self.position.x += 50
+        elif choice == "up":
+            self.position.y -= 50
+        elif choice == "down":
+            self.position.y += 50
+
+ship = Player(0, 0) 
+n_monsters = 10
+monsters = []
+for i in range(n_monsters):
+    monsters.append(Enemy(random.randrange(50,1600,50),random.randrange(50,750,50),100))
+
+MOVE = pygame.USEREVENT + 1 # custom event that allows the enemy to move
+pygame.time.set_timer(MOVE, 100) # evenet occurs every 100 frames
 
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == MOVE: # every 100 frames execute the move function from Enemy class
+            for i in range(n_monsters):
+                monsters[i].move()
 
-    screen.fill('white')
-    screen.blit(ground_surf,ground_rect)
+    screen.fill("white")
+    screen.blit(player, ship.position)
+
     keys = pygame.key.get_pressed()
-    moved = False
+
+    # screen.blit(player, ship.position) # updates the player position every frame
+
+    for i in range(n_monsters):
+        screen.blit(enemy, monsters[i].position) # updates the enemy position every frame
+
+    move_direction = pygame.Vector2(0, 0) # resets direction vector to 0 every frame.
+    # ** velocity is calculated seperately using the move method. 5 represents the base speed and changes
+    # depending on the velocity
+
+    if keys[pygame.K_a]:
+        move_direction.x -= 5
 
     if keys[pygame.K_d]:
-        ship.rotate(right=True)
-    if keys[pygame.K_a]:
-        ship.rotate(left=True)
+        move_direction.x += 5
+
     if keys[pygame.K_w]:
-        moved = True
-        ship.increase_speed()
-        ship.animate_ship(moved)
-    if not moved:
-        ship.reduce_speed()
-        ship.animate_ship(moved)
+        move_direction.y -= 5
 
-    ship.update()
+    if keys[pygame.K_s]:
+        move_direction.y += 5
 
-    pygame.display.update()
+    ship.move(move_direction) # using the move method along with the variable move_direction defined above
+
+    pygame.display.flip()
     dt = clock.tick(60) / 1000
 
 pygame.quit()
-

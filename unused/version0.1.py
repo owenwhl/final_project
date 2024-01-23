@@ -8,7 +8,7 @@ clock = pygame.time.Clock()
 running = True
 dt = 0
 
-rock = pygame.image.load("graphics/asteroid.png")
+rock = pygame.image.load("graphics/unused/asteroid.png")
 rock_scale = (100, 100)
 rock = pygame.transform.scale(rock, rock_scale)
 rock_pos = pygame.Vector2(random.randrange(0,650), random.randrange(0,650))
@@ -19,7 +19,7 @@ accel_up = 0
 accel_down = 0
 
 
-player = pygame.image.load("graphics/box.png")
+player = pygame.image.load("graphics/unusued/box.png")
 player_scale = (135 / 4, 160 / 4)
 player = pygame.transform.scale(player, player_scale)
 player_pos = pygame.Vector2(screen.get_width()/2, screen.get_height()/2)

@@ -3,19 +3,14 @@ import random
 
 # pygame setup
 pygame.init()
-width = 1650
-height = 800
-screen = pygame.display.set_mode((width, height))
+screen = pygame.display.set_mode((1650, 800))
 clock = pygame.time.Clock()
 running = True
 dt = 0
 
-camera_group = pygame.sprite.Group()
+player = pygame.image.load("graphics/unused/player.png")
 
-
-player = pygame.image.load("graphics/ship_up0.png")
-
-enemy = pygame.image.load("graphics/enemy.png")
+enemy = pygame.image.load("graphics/unused/enemy.png")
 scale = (50,50)
 enemy = pygame.transform.scale(enemy, scale)
 
@@ -61,10 +56,7 @@ class Enemy:
             self.position.y += 50
 
 ship = Player(0, 0) 
-n_monsters = 10
-monsters = []
-for i in range(n_monsters):
-    monsters.append(Enemy(random.randrange(50,1600,50),random.randrange(50,750,50),100))
+monster = Enemy(random.randrange(50,1600,50),random.randrange(50,750,50),100)
 
 MOVE = pygame.USEREVENT + 1 # custom event that allows the enemy to move
 pygame.time.set_timer(MOVE, 100) # evenet occurs every 100 frames
@@ -74,18 +66,12 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == MOVE: # every 100 frames execute the move function from Enemy class
-            for i in range(n_monsters):
-                monsters[i].move()
-
-    screen.fill("white")
-    screen.blit(player, ship.position)
+            monster.move()
 
     keys = pygame.key.get_pressed()
-
-    # screen.blit(player, ship.position) # updates the player position every frame
-
-    for i in range(n_monsters):
-        screen.blit(enemy, monsters[i].position) # updates the enemy position every frame
+    screen.fill("white")
+    screen.blit(player, ship.position) # updates the player position every frame
+    screen.blit(enemy, monster.position) # updates the enemy position every frame
 
     move_direction = pygame.Vector2(0, 0) # resets direction vector to 0 every frame.
     # ** velocity is calculated seperately using the move method. 5 represents the base speed and changes
